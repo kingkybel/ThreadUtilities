@@ -1,0 +1,38 @@
+# Build directory
+/build
+/build.docker
+/src/*.o
+/test/*.o
+/cmake-build-debug/
+
+# doxygen output directory
+/doxygen
+
+# autoconf created files
+.deps
+.dirstamp
+/autom4te.cache/
+/aclocal.m4
+/ar-lib
+/compile
+/config.h
+/config.h.in
+/config.h.in~
+/configure~
+/missing
+/test-driver
+/depcomp
+/install-sh
+/Makefile.in
+/Makefile
+/config.log
+/configure
+/config.status
+/stamp-h1
+
+# tryout directory
+/tryout/
+/.tryout/
+
+# idea-confif
+/.idea/

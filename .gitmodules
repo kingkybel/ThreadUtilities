@@ -1,0 +1,6 @@
+[submodule "TypeTraits"]
+	path = TypeTraits
+	url = git@github.com:kingkybel/TypeTraits.git
+[submodule "DebugTrace"]
+	path = DebugTrace
+	url = git@github.com:kingkybel/DebugTrace.git
