@@ -4,8 +4,8 @@ add_executable(run_tests
 )
 
 target_link_libraries(run_tests
+        dkthreadutil
         gtest
         gtest_main
 )
 add_test(NAME run_tests COMMAND run_tests)
-
