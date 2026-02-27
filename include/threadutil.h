@@ -56,7 +56,7 @@ struct deferred_lock_barrier
         std::vector<std::unique_lock<std::mutex>> locks;
         for (auto& i: std::index_sequence_for<MtxObjT_...>())
         {
-            locks.emplace_back(std::unique_lock<std::mutex>(std::get<i>(objs).mtx, std::defer_lock));
+            locks.emplace_back(std::unique_lock(std::get<i>(objs).mtx, std::defer_lock));
         }
     }
 };
@@ -88,7 +88,7 @@ auto make_exception_safe_future(Func&& func, Args&&... args) -> std::future<decl
         // Handle exceptions and set the exception in the promise
         promise.set_exception(std::current_exception());
     }
-    catch (...)
+    catch (...) // NOSONAR S1181, S2738: Catching all exceptions to ensure they are safely propagated via std::promise
     {
         // Handle non-standard exceptions and set them in the promise
         promise.set_exception(std::current_exception());
@@ -141,26 +141,13 @@ struct ThreadFunction : public ThreadFuncBase
 
   private:
     /**
-     * @brief Helper to make a variadic list from the tuple again and call the function
-     *
-     * @tparam Is index sequence
-     * @param tuple the tuple to pack
-     */
-    template <std::size_t... Is>
-    void package_tuple_and_call_function_(std::tuple<Args...> const& tuple, std::index_sequence<Is...>)
-    {
-        func_(std::get<Is>(args_)...);
-    }
-
-    /**
-     * @brief Helper to make a variadic list from the tuple again and use that to create a thread from the function and
+     * @brief Helper to make a variadic list from the tuple and use that to create a thread from the function and
      * arguments.
      *
      * @tparam Is index sequence
-     * @param tuple the tuple to pack
      */
     template <std::size_t... Is>
-    std::jthread make_thread_(std::tuple<Args...> const& tuple, std::index_sequence<Is...>)
+    std::jthread make_thread_([[maybe_unused]] std::tuple<Args...> const&, std::index_sequence<Is...>)
     {
         return std::jthread{func_, std::get<Is>(args_)...};
     }
@@ -321,7 +308,7 @@ class ThreadScheduler
             make_thread_func_ptr(std::forward<Func_>(func), std::forward<Args_>(args)...)
         };
         {
-            std::unique_lock<std::mutex> lock(mutex_);
+            std::unique_lock lock(mutex_);
             priority_thread_queue_.push(priority_thread);
         }
         // tell everyone that we have an element in the queue
