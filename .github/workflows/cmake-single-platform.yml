@@ -165,24 +165,11 @@ jobs:
         run: |
           ctest --test-dir "${{env.BUILD_DIR}}" -C "${{env.BUILD_TYPE}}" --output-on-failure
 
-      - name: Generate coverage report
-        run: |
-          lcov --directory "${{env.BUILD_DIR}}" --capture --output-file coverage.lcov
-          lcov --remove coverage.lcov '/usr/*' '**/test/*' '**/googletest/*' --output-file coverage.lcov
-
-      - name: Convert coverage to gcov format
-        run: |
-          mkdir -p gcov-reports
-          cd "${{env.BUILD_DIR}}"
-          find . -name "*.gcda" | while read gcda; do
-            gcov -p "$gcda"
-          done
-          mv *.gcov ../gcov-reports/ || true
-
       - name: Sonar scan
         uses: SonarSource/sonarqube-scan-action@v5
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_THREADS: ${{ runner.os == 'Linux' && '4' || '2' }}
         with:
           args: >
             -Dsonar.organization=${{ vars.SONAR_ORG }}
@@ -190,4 +177,4 @@ jobs:
             -Dsonar.login=${{ secrets.SONAR_TOKEN }}
             -Dsonar.sources=include,test
             -Dsonar.cfamily.build-wrapper-output=bw-output
-            -Dsonar.cfamily.gcov.reportPaths=coverage.lcov
+            -Dsonar.cfamily.threads=4
