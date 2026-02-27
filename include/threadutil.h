@@ -124,8 +124,8 @@ struct ThreadFunction : public ThreadFuncBase
      * @param args arguments
      */
     explicit ThreadFunction(Func&& func, Args&&... args)
-        : func_(func)
-        , args_(std::tuple<Args...>(args...))
+        : func_(std::move(func))
+        , args_(std::tuple<Args...>(std::move(args)...))
     {
     }
 
@@ -175,11 +175,14 @@ std::shared_ptr<ThreadFuncBase> make_thread_func_ptr(Func_ func, Args_... args)
     return std::dynamic_pointer_cast<ThreadFuncBase>(pFunc);
 }
 
-namespace
+namespace detail
 {
 using millis                    = std::chrono::milliseconds;
 auto const default_priority_intervals = std::vector<millis>{millis{50}, millis{200}, millis{500}, millis{1'000}};
-}; // namespace
+}; // namespace detail
+
+using detail::millis;
+using detail::default_priority_intervals;
 
 /**
  * @brief Priority thread wrapper.
@@ -256,7 +259,7 @@ struct PriorityThread
         return arrival_time_;
     }
 
-    std::jthread start()
+    std::jthread start() const
     {
         return pThreadFunc_->start_thread();
     }
@@ -328,30 +331,32 @@ class ThreadScheduler
     bool volatile terminate_ = false;
 };
 
-// using namespace std;
-// int main()
-// {
-//     auto scheduler = ThreadScheduler{default_priority_intervals, std::thread::hardware_concurrency()};
-//
-//     for(size_t i = 0; i < 20; i++)
-//         scheduler.addThread(
-//          4711 + i,
-//          0 % 5,
-//          [](int id)
-//          {
-//              cout << "threadID=" << std::this_thread::get_id() << ": Hello from " << id << endl;
-//              this_thread::sleep_for(millis{1500 * (id % 3)});
-//              cout << "threadID=" << std::this_thread::get_id() << ": finished " << id <<endl;
-//          },
-//          i);
-//
-//     cout << "main-threadID=" << std::this_thread::get_id() << endl;
-//     this_thread::sleep_for(std::chrono::seconds{5});
-//
-//     scheduler.terminate();
-//
-//     return 0;
-// }
+/* NOSONAR S5817: Leave this as example usage
+using namespace std;
+int main()
+{
+    auto scheduler = ThreadScheduler{default_priority_intervals, std::thread::hardware_concurrency()};
+
+    for(size_t i = 0; i < 20; i++)
+        scheduler.addThread(
+         4711 + i,
+         0 % 5,
+         [](int id)
+         {
+             cout << "threadID=" << std::this_thread::get_id() << ": Hello from " << id << endl;
+             this_thread::sleep_for(millis{1500 * (id % 3)});
+             cout << "threadID=" << std::this_thread::get_id() << ": finished " << id <<endl;
+         },
+         i);
+
+    cout << "main-threadID=" << std::this_thread::get_id() << endl;
+    this_thread::sleep_for(std::chrono::seconds{5});
+
+    scheduler.terminate();
+
+    return 0;
+}
+*/
 
 }; // namespace util
 

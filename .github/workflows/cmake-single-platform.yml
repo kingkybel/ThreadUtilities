@@ -100,7 +100,7 @@ jobs:
       - name: Install build tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential cmake ninja-build curl unzip
+          sudo apt-get install -y build-essential cmake ninja-build curl unzip gcov lcov
 
       - name: Cache gtest
         uses: actions/cache@v4
@@ -155,11 +155,29 @@ jobs:
 
       - name: Configure CMake
         run: |
-          cmake -S . -B "${{env.BUILD_DIR}}" -G Ninja -DCMAKE_BUILD_TYPE="${{env.BUILD_TYPE}}" -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+          cmake -S . -B "${{env.BUILD_DIR}}" -G Ninja -DCMAKE_BUILD_TYPE="${{env.BUILD_TYPE}}" -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DCMAKE_CXX_FLAGS="--coverage" -DCMAKE_C_FLAGS="--coverage" -DCMAKE_EXE_LINKER_FLAGS="--coverage"
 
       - name: Build (captured by build-wrapper)
         run: |
           build-wrapper-linux-x86-64 --out-dir bw-output cmake --build "${{env.BUILD_DIR}}" --parallel
+
+      - name: Run tests for coverage
+        run: |
+          ctest --test-dir "${{env.BUILD_DIR}}" -C "${{env.BUILD_TYPE}}" --output-on-failure
+
+      - name: Generate coverage report
+        run: |
+          lcov --directory "${{env.BUILD_DIR}}" --capture --output-file coverage.lcov
+          lcov --remove coverage.lcov '/usr/*' '**/test/*' '**/googletest/*' --output-file coverage.lcov
+
+      - name: Convert coverage to gcov format
+        run: |
+          mkdir -p gcov-reports
+          cd "${{env.BUILD_DIR}}"
+          find . -name "*.gcda" | while read gcda; do
+            gcov -p "$gcda"
+          done
+          mv *.gcov ../gcov-reports/ || true
 
       - name: Sonar scan
         uses: SonarSource/sonarqube-scan-action@v5
@@ -172,3 +190,4 @@ jobs:
             -Dsonar.login=${{ secrets.SONAR_TOKEN }}
             -Dsonar.sources=include,test
             -Dsonar.cfamily.build-wrapper-output=bw-output
+            -Dsonar.cfamily.gcov.reportPaths=coverage.lcov
