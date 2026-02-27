@@ -40,17 +40,49 @@
 
 namespace util
 {
+/**
+ * @brief Abstract base class for objects that manage a mutex and provide a run operation.
+ *
+ * This struct serves as an interface for objects that require thread-safe access via a mutex.
+ * Derived classes must implement the do_run() virtual method to define the action to be performed.
+ */
 struct mutexed_object_base
 {
+    /**
+     * @brief Execute the object's operation (abstract).
+     * Derived classes must implement this method.
+     */
     virtual void do_run() = 0;
+
+    /**
+     * @brief Mutex used to synchronize access to the object.
+     */
     std::mutex   mtx;
 };
 
+/**
+ * @brief Utility for deferring locks across multiple mutex-managed objects.
+ *
+ * This template struct manages a tuple of objects that each contain a mutex.
+ * It provides a synchronise() method to acquire deferred locks on all contained objects' mutexes.
+ *
+ * @tparam MtxObjT_ Variadic template parameter types representing mutex-managed objects
+ *                   (each should have a public std::mutex member named 'mtx')
+ */
 template <typename... MtxObjT_>
 struct deferred_lock_barrier
 {
+    /**
+     * @brief Tuple containing the mutex-managed objects to be synchronized.
+     */
     std::tuple<MtxObjT_...> objs;
 
+    /**
+     * @brief Create deferred locks for all objects' mutexes without acquiring them.
+     *
+     * This method establishes deferred locks (std::defer_lock) for each mutex in the contained objects.
+     * Deferred locks are not acquired immediately but can be locked later using lock() or other synchronization methods.
+     */
     void synchronise()
     {
         std::vector<std::unique_lock<std::mutex>> locks;
@@ -62,14 +94,18 @@ struct deferred_lock_barrier
 };
 
 /**
- * @brief future/promise implementation that is thread safe
+ * @brief Create a thread-safe future that captures function results or exceptions.
  *
- * @tparam Func function that may throw
- * @tparam Args variadic argument types
- * @param func function/function object
- * @param args function arguments
- * @return std::future<decltype(func(std::forward<Args>(args)...))> a future that encapsulates the result, including any
- * exception
+ * This function executes the given callable and returns a future that encapsulates the result.
+ * If the function throws an exception, the exception is safely propagated through the future
+ * and can be retrieved when calling future.get().
+ *
+ * @tparam Func Type of the callable object (function, lambda, or functor)
+ * @tparam Args Variadic parameter types for the function arguments
+ * @param func A callable object to execute
+ * @param args Zero or more arguments to pass to the callable
+ * @return std::future<decltype(func(std::forward<Args>(args)...))> A future that will contain
+ *         either the function's result or any exception it throws
  */
 template <typename Func, typename... Args>
 auto make_exception_safe_future(Func&& func, Args&&... args) -> std::future<decltype(func(std::forward<Args>(args)...))>
@@ -83,7 +119,7 @@ auto make_exception_safe_future(Func&& func, Args&&... args) -> std::future<decl
         // Call the provided function and set the result in the promise
         promise.set_value(func(std::forward<Args>(args)...));
     }
-    catch (std::exception const& ex)
+    catch (std::exception const& ex) // NOSONAR S1181: Catching all exceptions to ensure they are safely propagated via std::promise
     {
         // Handle exceptions and set the exception in the promise
         promise.set_exception(std::current_exception());
@@ -98,30 +134,39 @@ auto make_exception_safe_future(Func&& func, Args&&... args) -> std::future<decl
 }
 
 /**
- * @brief Base for any thread-function
+ * @brief Abstract base class for polymorphic thread functions.
+ *
+ * Provides an interface for creating and starting threads with various function signatures.
+ * Derived classes wrap specific function types and arguments, enabling compile-time polymorphism
+ * of thread functions through runtime polymorphic pointers.
  */
 struct ThreadFuncBase
 {
     /**
-     * @brief execute the function in a thread (abstract)
+     * @brief Create and start a thread with the wrapped function and arguments.
+     *
+     * @return std::jthread A joinable thread executing the wrapped function
      */
     virtual std::jthread start_thread() = 0;
 };
 
 /**
- * @brief Thread-function wrapper derive from ThreadFuncBase
+ * @brief Concrete thread-function wrapper implementing ThreadFuncBase.
  *
- * @tparam Func function type
- * @tparam Args args-type variadic for compile-time polymorph functions
+ * This template struct wraps a callable object (function, lambda, or functor) along with its arguments.
+ * It enables passing compile-time polymorphic functions through a runtime polymorphic interface.
+ *
+ * @tparam Func Type of the callable object (function pointer, lambda, or functor)
+ * @tparam Args Variadic parameter types for the function arguments
  */
 template <typename Func, typename... Args>
 struct ThreadFunction : public ThreadFuncBase
 {
     /**
-     * @brief Construct a new Thread Function object given the function (-object) and the parameters
+     * @brief Construct a new ThreadFunction with the given callable and arguments.
      *
-     * @param func function
-     * @param args arguments
+     * @param func A callable object (function, lambda, or functor)
+     * @param args Zero or more arguments to pass to the function
      */
     explicit ThreadFunction(Func&& func, Args&&... args)
         : func_(std::move(func))
@@ -130,9 +175,9 @@ struct ThreadFunction : public ThreadFuncBase
     }
 
     /**
-     * @brief Create a thread from the given function. This will automatically start the thread.
+     * @brief Create and start a thread executing the wrapped function with stored arguments.
      *
-     * @return std::jthread the (started) thread
+     * @return std::jthread A joinable thread that executes the wrapped function
      */
     std::jthread start_thread() override
     {
@@ -159,13 +204,18 @@ struct ThreadFunction : public ThreadFuncBase
 };
 
 /**
- * @brief Create a pointer to ThreadFuncBase from a concrete, compile-time polymorph ThreadFunction
+ * @brief Create a polymorphic pointer from a concrete thread function with arguments.
  *
- * @tparam Func_ function type
- * @tparam Args_ variadic argument types
- * @param func function to serve as thread function
- * @param args arguments for the thread function
- * @return std::shared_ptr<ThreadFuncBase> shared pointer to the thread-function
+ * This helper function wraps a callable object and its arguments in a ThreadFunction instance,
+ * then casts it to a ThreadFuncBase pointer for runtime polymorphic use. This allows
+ * compile-time polymorphic functions to be used through a uniform runtime polymorphic interface.
+ *
+ * @tparam Func_ Type of the callable object (function, lambda, or functor)
+ * @tparam Args_ Variadic parameter types for the function arguments
+ * @param func A callable object to wrap
+ * @param args Zero or more arguments to pass to the callable
+ * @return std::shared_ptr<ThreadFuncBase> A shared pointer to the wrapped function,
+ *         suitable for use with the thread scheduler
  */
 template <typename Func_, typename... Args_>
 std::shared_ptr<ThreadFuncBase> make_thread_func_ptr(Func_ func, Args_... args)
@@ -185,24 +235,37 @@ using detail::millis;
 using detail::default_priority_intervals;
 
 /**
- * @brief Priority thread wrapper.
- * Contains:
+ * @brief Wrapper for a thread with associated priority and metadata.
+ *
+ * This struct encapsulates a thread function along with scheduling information:
  * <ul>
- *  <li>an ID</li>
- *  <li>a priority</li>
- *  <li>a pointer to a (polymorph) function to be executed by the thread</li>
+ *  <li>A unique identifier for the thread</li>
+ *  <li>A priority value used for scheduling decisions</li>
+ *  <li>The timestamp when the thread entered the queue</li>
+ *  <li>A pointer to the polymorphic function to be executed</li>
  * </ul>
+ *
+ * PriorityThreads are compared and ordered by priority for use in priority queues.
  */
 struct PriorityThread
 {
+    /**
+     * @brief Construct a new PriorityThread with ID, initial priority, and function.
+     *
+     * @param id Unique identifier for this thread
+     * @param priority Initial priority value (higher values = higher priority)
+     * @param pThreadFunc Shared pointer to the ThreadFuncBase implementation to execute
+     */
     PriorityThread(uint64_t id, uint64_t priority, std::shared_ptr<ThreadFuncBase> pThreadFunc);
 
     /**
-     * @brief spaceship-operator for PriorityTreads
+     * @brief Three-way comparison operator for PriorityThreads.
      *
-     * @param lhs left-hand-side
-     * @param rhs right-hand-side
-     * @return std::strong_ordering
+     * Compares threads based on their priority values, enabling sorting in priority queues.
+     *
+     * @param lhs Left-hand-side operand
+     * @param rhs Right-hand-side operand
+     * @return std::strong_ordering Result of comparing lhs.priority_ with rhs.priority_
      */
     friend auto operator<=>(PriorityThread const& lhs, PriorityThread const& rhs)
     {
@@ -210,11 +273,13 @@ struct PriorityThread
     }
 
     /**
-     * @brief equality-operator for PriorityTreads
+     * @brief Equality comparison operator for PriorityThreads.
      *
-     * @param lhs left-hand-side
-     * @param rhs right-hand-side
-     * @return true, if priorities are equal
+     * Two threads are considered equal if they have the same priority.
+     *
+     * @param lhs Left-hand-side operand
+     * @param rhs Right-hand-side operand
+     * @return true if both threads have equal priority; false otherwise
      */
     friend bool operator==(PriorityThread const& lhs, PriorityThread const& rhs)
     {
@@ -222,9 +287,9 @@ struct PriorityThread
     }
 
     /**
-     * @brief Retrieve the ID.
+     * @brief Get the unique identifier for this thread.
      *
-     * @return uint64_t the ID
+     * @return uint64_t The unique ID assigned to this thread
      */
     [[nodiscard]] uint64_t id() const
     {
@@ -232,9 +297,11 @@ struct PriorityThread
     }
 
     /**
-     * @brief Retrieve the current priority.
+     * @brief Get the current priority value of this thread.
      *
-     * @return uint64_t the current priority
+     * Higher values indicate higher priority in the scheduling queue.
+     *
+     * @return uint64_t The current priority value
      */
     [[nodiscard]] uint64_t priority() const
     {
@@ -242,7 +309,10 @@ struct PriorityThread
     }
 
     /**
-     * @brief Increase the priority.
+     * @brief Increment the priority of this thread.
+     *
+     * This is typically called when a thread has waited a long time in the queue
+     * to prevent starvation of lower-priority threads.
      */
     void increase_priority()
     {
@@ -250,15 +320,20 @@ struct PriorityThread
     }
 
     /**
-     * @brief Retrieve the arrival-time of this PriorityThread.
+     * @brief Get the timestamp when this thread was added to the scheduler queue.
      *
-     * @return chrono::steady_clock::time_point the arrival-time
+     * @return std::chrono::steady_clock::time_point The arrival time of this thread
      */
     [[nodiscard]] std::chrono::steady_clock::time_point arrival_time() const
     {
         return arrival_time_;
     }
 
+    /**
+     * @brief Create and start the thread with its wrapped function.
+     *
+     * @return std::jthread A joinable thread executing the wrapped function
+     */
     std::jthread start() const
     {
         return pThreadFunc_->start_thread();
@@ -272,35 +347,60 @@ struct PriorityThread
 };
 
 /**
- * @brief Schedule threads for execution according to priority.
- * Limit the number of parallel threads to the given pool_size.
- * According to given priority_intervals increase priority of threads
- * that have waited a long time.
+ * @brief Priority-based thread pool scheduler.
+ *
+ * This class manages execution of threads in a controlled pool with the following features:
+ * <ul>
+ *  <li>Executes threads according to their priority (higher priority = earlier execution)</li>
+ *  <li>Limits the number of concurrently running threads to pool_size</li>
+ *  <li>Implements aging/starvation prevention: boosts priority of waiting threads based on arrival time</li>
+ *  <li>Thread-safe queue for adding new threads</li>
+ * </ul>
+ *
+ * The scheduler runs a background thread that processes the priority queue and starts threads
+ * when slots become available in the pool. It automatically adjusts priorities of waiting threads
+ * at configured time intervals to prevent starvation of low-priority threads.
  */
 class ThreadScheduler
 {
   public:
+    /**
+     * @brief Construct a ThreadScheduler with specified configuration.
+     *
+     * @param priority_intervals Vector of time intervals at which to increase priority of waiting threads.
+     *                           Defaults to {50ms, 200ms, 500ms, 1000ms}
+     * @param pool_size Maximum number of threads to execute concurrently.
+     *                  Defaults to 2x the hardware concurrency
+     */
     explicit ThreadScheduler(
         std::vector<millis> const& priority_intervals = default_priority_intervals,
         uint64_t pool_size                            = std::jthread::hardware_concurrency() * 2
     );
 
+    /**
+     * @brief Destructor. Terminates the scheduler and waits for queued threads to finish.
+     */
     ~ThreadScheduler();
 
     /**
-     * @brief Terminate the thread-scheduler.
+     * @brief Terminate the scheduler and stop processing new threads.
+     *
+     * Any threads already started will continue running. This function is thread-safe.
      */
     void terminate();
 
     /**
-     * @brief Add a thread to the priority-queue
+     * @brief Add a thread to the scheduler queue with specified priority.
      *
-     * @tparam Func function type
-     * @tparam Args function arg-types (variadic)
-     * @param id thread id
-     * @param priority initial priority of the thread
-     * @param func thread function
-     * @param args arguments for the thread function
+     * The thread will be started when a slot becomes available in the thread pool.
+     * This method is thread-safe and returns immediately without waiting for the thread to start.
+     *
+     * @tparam Func_ Type of the callable object (function, lambda, or functor)
+     * @tparam Args_ Variadic parameter types for the function arguments
+     * @param id Unique identifier for this thread (for tracking/logging purposes)
+     * @param priority Initial priority value (higher = executed sooner)
+     * @param func The callable to execute in the thread
+     * @param args Zero or more arguments to pass to the callable
      */
     template <typename Func_, typename... Args_>
     void addThread(uint64_t id, uint64_t priority, Func_&& func, Args_&&... args)

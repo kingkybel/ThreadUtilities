@@ -8,13 +8,11 @@ AlignConsecutiveDeclarations:
   AlignFunctionPointers: true
   PadOperators: true
 AllowShortFunctionsOnASingleLine: None
-BreakTemplateDeclarations: Yes
 AllowShortEnumsOnASingleLine: false
 AlignConsecutiveShortCaseStatements:
   Enabled: true
   AcrossEmptyLines: true
   AcrossComments: true
-  AlignCaseArrows: true
   AlignCaseColons: false
 AlignConsecutiveMacros:
   AcrossEmptyLines: true
@@ -25,14 +23,9 @@ AlignConsecutiveAssignments:
   Enabled: true
 AlignAfterOpenBracket: BlockIndent
 AlignArrayOfStructures: Left
-AlignConsecutiveTableGenBreakingDAGArgColons:
-  Enabled: true
-AlignConsecutiveTableGenDefinitionColons:
-  Enabled: true
 AllowAllArgumentsOnNextLine: false
 AllowAllParametersOfDeclarationOnNextLine: false
 AllowShortBlocksOnASingleLine: Never
-AllowShortCaseExpressionOnASingleLine: true
 AllowShortCaseLabelsOnASingleLine: false
 AllowShortCompoundRequirementOnASingleLine: true
 AllowShortIfStatementsOnASingleLine: Never

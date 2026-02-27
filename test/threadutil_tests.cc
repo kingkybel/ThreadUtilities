@@ -24,9 +24,9 @@
  */
 #include "threadutil.h"
 
-#include <gtest/gtest.h>
 #include <atomic>
 #include <chrono>
+#include <gtest/gtest.h>
 #include <iostream>
 #include <string>
 
@@ -35,7 +35,7 @@ using namespace util;
 
 class ThreadutilTest : public ::testing::Test
 {
-    protected:
+  protected:
     void SetUp() override
     {
         // just in case we need it
@@ -49,8 +49,10 @@ class ThreadutilTest : public ::testing::Test
 
 double somefunc(int x, double y)
 {
-    if(y < 0.0)
-        throw std::runtime_error("y is negative");
+    if (y < 0.0)
+    {
+        throw std::runtime_error("y is negative"); // NOSONAR S112: OK in test
+    }
     return static_cast<double>(x) + y;
 }
 
@@ -60,16 +62,9 @@ TEST_F(ThreadutilTest, future_with_exception_test)
     double y             = 6.4;
     auto   result_future = make_exception_safe_future(somefunc, x, y);
     double result{};
-    try
-    {
-        // Get the result or handle exceptions
-        ASSERT_NO_THROW(result = result_future.get());
-        ASSERT_EQ(result, 11.4);
-    }
-    catch(const std::exception& ex)
-    {
-        FAIL() << "Unexpected exception: " << ex.what() << std::endl;
-    }
+
+    ASSERT_NO_THROW(result = result_future.get());
+    ASSERT_EQ(result, 11.4);
 
     y             = -5.0;
     result_future = make_exception_safe_future(somefunc, x, y);
@@ -78,18 +73,14 @@ TEST_F(ThreadutilTest, future_with_exception_test)
 
 TEST_F(ThreadutilTest, future_with_non_standard_exception_test)
 {
-    auto future = make_exception_safe_future([]() -> int {
-        throw 7;
-    });
+    auto future = make_exception_safe_future([]() -> int { throw 7; });
     ASSERT_THROW(future.get(), int);
 }
 
 TEST_F(ThreadutilTest, thread_function_executes_callable_test)
 {
-    std::atomic<int> observed{0};
-    auto callable = [&observed]() {
-        observed.store(123);
-    };
+    std::atomic<int>                   observed{0};
+    auto                               callable = [&observed]() { observed.store(123); };
     ThreadFunction<decltype(callable)> thread_function{std::move(callable)};
 
     auto worker = thread_function.start_thread();
@@ -101,13 +92,8 @@ TEST_F(ThreadutilTest, thread_function_executes_callable_test)
 TEST_F(ThreadutilTest, make_thread_func_ptr_returns_executable_base_test)
 {
     std::atomic<int> observed{0};
-    auto             thread_func = make_thread_func_ptr(
-        [](std::atomic<int>& out, int value) {
-            out.store(value);
-        },
-        std::ref(observed),
-        77
-    );
+    auto             thread_func =
+        make_thread_func_ptr([](std::atomic<int>& out, int value) { out.store(value); }, std::ref(observed), 77);
 
     ASSERT_NE(thread_func, nullptr);
     auto worker = thread_func->start_thread();
@@ -118,16 +104,8 @@ TEST_F(ThreadutilTest, make_thread_func_ptr_returns_executable_base_test)
 
 TEST_F(ThreadutilTest, priority_thread_accessors_and_ordering_test)
 {
-    auto low_priority = PriorityThread{
-        11,
-        1,
-        make_thread_func_ptr([]() {})
-    };
-    auto high_priority = PriorityThread{
-        22,
-        5,
-        make_thread_func_ptr([]() {})
-    };
+    auto low_priority  = PriorityThread{11, 1, make_thread_func_ptr([]() { /*some body*/ })};
+    auto high_priority = PriorityThread{22, 5, make_thread_func_ptr([]() { /*some body*/ })};
 
     ASSERT_EQ(low_priority.id(), 11);
     ASSERT_EQ(low_priority.priority(), 1);
@@ -143,13 +121,7 @@ TEST_F(ThreadutilTest, priority_thread_start_runs_wrapped_function_test)
     PriorityThread   priority_thread{
         99,
         2,
-        make_thread_func_ptr(
-            [](std::atomic<int>& out, int value) {
-                out.store(value);
-            },
-            std::ref(observed),
-            42
-        )
+        make_thread_func_ptr([](std::atomic<int>& out, int value) { out.store(value); }, std::ref(observed), 42)
     };
 
     auto worker = priority_thread.start();
@@ -163,22 +135,8 @@ TEST_F(ThreadutilTest, scheduler_executes_threads_from_queue_test)
     std::atomic<int> execution_sum{0};
 
     ThreadScheduler scheduler{default_priority_intervals, 2};
-    scheduler.addThread(
-        1001,
-        1,
-        [&execution_sum](int value) {
-            execution_sum.fetch_add(value);
-        },
-        3
-    );
-    scheduler.addThread(
-        1002,
-        3,
-        [&execution_sum](int value) {
-            execution_sum.fetch_add(value);
-        },
-        5
-    );
+    scheduler.addThread(1'001, 1, [&execution_sum](int value) { execution_sum.fetch_add(value); }, 3);
+    scheduler.addThread(1'002, 3, [&execution_sum](int value) { execution_sum.fetch_add(value); }, 5);
 
     auto const deadline = std::chrono::steady_clock::now() + std::chrono::seconds{2};
     while (std::chrono::steady_clock::now() < deadline && execution_sum.load() != 8)
@@ -204,13 +162,9 @@ TEST_F(ThreadutilTest, scheduler_executes_multiple_tasks_test)
     ThreadScheduler scheduler{default_priority_intervals, 3};
     for (int i = 0; i < 5; ++i)
     {
-        scheduler.addThread(
-            static_cast<uint64_t>(2000 + i),
-            static_cast<uint64_t>(i % 2),
-            [&executions]() {
-                executions.fetch_add(1);
-            }
-        );
+        scheduler.addThread(static_cast<uint64_t>(2'000 + i), static_cast<uint64_t>(i % 2), [&executions]() {
+            executions.fetch_add(1);
+        });
     }
 
     auto const deadline = std::chrono::steady_clock::now() + std::chrono::seconds{2};
