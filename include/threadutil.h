@@ -27,6 +27,7 @@
 #define NS_UTIL_THREADUTIL_H_INCLUDED
 
 #include <chrono>
+#include <compare>
 #include <condition_variable>
 #include <functional>
 #include <future>
@@ -104,7 +105,7 @@ struct ThreadFuncBase
     /**
      * @brief execute the function in a thread (abstract)
      */
-    virtual std::thread start_thread() = 0;
+    virtual std::jthread start_thread() = 0;
 };
 
 /**
@@ -131,9 +132,9 @@ struct ThreadFunction : public ThreadFuncBase
     /**
      * @brief Create a thread from the given function. This will automatically start the thread.
      *
-     * @return std::thread the (started) thread
+     * @return std::jthread the (started) thread
      */
-    std::thread start_thread() override
+    std::jthread start_thread() override
     {
         return make_thread_(args_, std::index_sequence_for<Args...>());
     }
@@ -159,15 +160,15 @@ struct ThreadFunction : public ThreadFuncBase
      * @param tuple the tuple to pack
      */
     template <std::size_t... Is>
-    std::thread make_thread_(std::tuple<Args...> const& tuple, std::index_sequence<Is...>)
+    std::jthread make_thread_(std::tuple<Args...> const& tuple, std::index_sequence<Is...>)
     {
-        return std::thread{func_, std::get<Is>(args_)...};
+        return std::jthread{func_, std::get<Is>(args_)...};
     }
 
-    typedef std::function<void(Args...)> FuncType;
+    using FuncType = std::function<void(Args...)>;
 
-    FuncType            func_;
-    std::tuple<Args...> args_;
+    FuncType                         func_;
+    [[no_unique_address]] std::tuple<Args...> args_;
 };
 
 /**
@@ -190,7 +191,7 @@ std::shared_ptr<ThreadFuncBase> make_thread_func_ptr(Func_ func, Args_... args)
 namespace
 {
 using millis                    = std::chrono::milliseconds;
-auto default_priority_intervals = std::vector<millis>{millis{50}, millis{200}, millis{500}, millis{1'000}};
+auto const default_priority_intervals = std::vector<millis>{millis{50}, millis{200}, millis{500}, millis{1'000}};
 }; // namespace
 
 /**
@@ -207,15 +208,27 @@ struct PriorityThread
     PriorityThread(uint64_t id, uint64_t priority, std::shared_ptr<ThreadFuncBase> pThreadFunc);
 
     /**
-     * @brief Less-operator for PriorityTreads
+     * @brief spaceship-operator for PriorityTreads
      *
      * @param lhs left-hand-side
      * @param rhs right-hand-side
-     * @return true, if lhs has lower priority than rhs, false otherwise
+     * @return std::strong_ordering
      */
-    friend bool operator<(PriorityThread const& lhs, PriorityThread const& rhs)
+    friend auto operator<=>(PriorityThread const& lhs, PriorityThread const& rhs)
     {
-        return lhs.priority_ < rhs.priority_;
+        return lhs.priority_ <=> rhs.priority_;
+    }
+
+    /**
+     * @brief equality-operator for PriorityTreads
+     *
+     * @param lhs left-hand-side
+     * @param rhs right-hand-side
+     * @return true, if priorities are equal
+     */
+    friend bool operator==(PriorityThread const& lhs, PriorityThread const& rhs)
+    {
+        return lhs.priority_ == rhs.priority_;
     }
 
     /**
@@ -256,7 +269,7 @@ struct PriorityThread
         return arrival_time_;
     }
 
-    std::thread start()
+    std::jthread start()
     {
         return pThreadFunc_->start_thread();
     }
@@ -279,7 +292,7 @@ class ThreadScheduler
   public:
     explicit ThreadScheduler(
         std::vector<millis> const& priority_intervals = default_priority_intervals,
-        uint64_t pool_size                            = std::thread::hardware_concurrency() * 2
+        uint64_t pool_size                            = std::jthread::hardware_concurrency() * 2
     );
 
     ~ThreadScheduler();
@@ -316,15 +329,15 @@ class ThreadScheduler
     }
 
   private:
-    void        processQueueThread();
-    std::thread processQueue();
+    void         processQueueThread();
+    std::jthread processQueue();
 
     std::priority_queue<PriorityThread> priority_thread_queue_;
     std::vector<millis>                 priority_intervals_;
     uint64_t                            pool_size_;
     std::mutex                          mutex_;
     std::condition_variable             cv_;
-    std::thread                         queue_processor_thread_;
+    std::jthread                        queue_processor_thread_;
     bool volatile terminate_ = false;
 };
 

@@ -38,17 +38,19 @@ class ThreadutilTest : public ::testing::Test
     protected:
     void SetUp() override
     {
+        // just in case we need it
     }
 
     void TearDown() override
     {
+        // just in case we need it
     }
 };
 
 double somefunc(int x, double y)
 {
     if(y < 0.0)
-        throw std::exception();
+        throw std::runtime_error("y is negative");
     return static_cast<double>(x) + y;
 }
 

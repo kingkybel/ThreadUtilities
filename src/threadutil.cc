@@ -49,7 +49,6 @@ ThreadScheduler::ThreadScheduler(std::vector<millis> const& priority_intervals, 
 
 ThreadScheduler::~ThreadScheduler()
 {
-    queue_processor_thread_.join();
 }
 
 void ThreadScheduler::terminate()
@@ -63,7 +62,7 @@ void ThreadScheduler::terminate()
 
 void ThreadScheduler::processQueueThread()
 {
-    std::vector<std::thread> thread_pool;
+    std::vector<std::jthread> thread_pool;
 
     while (true)
     {
@@ -93,6 +92,8 @@ void ThreadScheduler::processQueueThread()
         {
             if (it->joinable())
             {
+                // Note: jthread will join on destruction, but here we explicitly join and erase
+                // to free up space in the pool for new threads.
                 it->join();
                 it = thread_pool.erase(it);
             }
@@ -103,19 +104,13 @@ void ThreadScheduler::processQueueThread()
         }
     }
 
-    // Wait for all remaining threads in the pool to finish
-    for (auto& thread: thread_pool)
-    {
-        if (thread.joinable())
-        {
-            thread.join();
-        }
-    }
+    // No need to explicitly join remaining threads in thread_pool or queue_processor_thread_
+    // as jthread handles it on destruction.
 }
 
-std::thread ThreadScheduler::processQueue()
+std::jthread ThreadScheduler::processQueue()
 {
-    std::thread queueProcessorThread{&ThreadScheduler::processQueueThread, this};
+    std::jthread queueProcessorThread{&ThreadScheduler::processQueueThread, this};
     return queueProcessorThread;
 }
 

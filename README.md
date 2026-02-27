@@ -14,7 +14,7 @@ It is intended as a utility library, not a full task-runtime framework.
 ## What It Provides
 
 - `make_exception_safe_future`: wraps a callable in a `std::future` and stores thrown exceptions in the future.
-- `ThreadFunction` and `make_thread_func_ptr`: type-erased wrappers that turn callables + arguments into executable `std::thread` work items.
+- `ThreadFunction` and `make_thread_func_ptr`: type-erased wrappers that turn callables + arguments into executable `std::jthread` work items.
 - `PriorityThread`: thread work with an ID and a priority value.
 - `ThreadScheduler`: a small scheduler that runs queued work from a priority queue with a bounded worker pool.
 
