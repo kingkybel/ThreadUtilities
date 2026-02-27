@@ -1,3 +1,5 @@
+![Thread Utilities banner](assets/banners/thread-utilities-banner.svg)
+
 # ThreadUtilities
 
 A C++23 library for lightweight thread helpers and priority-based task scheduling.
@@ -83,3 +85,8 @@ Include the file in your code e.g:
 ```c++
 #include <dkyb/threadutil.h>
 ```
+## Powered by
+Reduce the smells, keep on top of code-quality. Sonar Qube is run on every push to the `main` branch on GitHub.
+
+
+[![SonarQubeCloud](assets/icons/logo-sonarqube-cloud-small.png)](https://sonarcloud.io/project/overview?id=kingkybel)
